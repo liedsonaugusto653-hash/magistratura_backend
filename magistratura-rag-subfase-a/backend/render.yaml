@@ -1,20 +1,49 @@
 services:
-  # Backend Service (Spring Boot Docker)
   - type: web
-    name: magistratura-rag-backend
-    env: docker
+    name: magistratura-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
     plan: free
-    dockerfilePath: Dockerfile
+    healthCheckPath: /api/ia/status
     envVars:
       - key: SPRING_PROFILES_ACTIVE
-        value: prod
-      - key: SPRING_DATASOURCE_URL
-        sync: false # Cole a URL do Supabase (ex: jdbc:postgresql://db.xxxx.supabase.co:5432/postgres)
-      - key: SPRING_DATASOURCE_USERNAME
-        sync: false # Usuário do Supabase (postgres)
-      - key: SPRING_DATASOURCE_PASSWORD
-        sync: false # Senha do Supabase
+        value: cloud
+      - key: SERVER_PORT
+        value: 8080
       - key: JWT_SECRET
         generateValue: true
-      - key: GEMINI_API_KEY
+      - key: IA_PROVIDER
+        value: openai
+      - key: OPENAI_BASE_URL
+        value: https://api.groq.com/openai/v1
+      - key: OPENAI_MODEL
+        value: llama-3.3-70b-versatile
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        value: "5432"
+      - key: DB_NAME
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_SSLMODE
+        value: require
+      - key: KNOWLEDGE_VECTOR_STORE
+        value: noop
+      - key: KNOWLEDGE_EMBEDDING_FAIL_SOFT
+        value: "true"
+      - key: PIPELINE_OCR_ENABLED
+        value: "true"
+      - key: PIPELINE_OCR_DPI
+        value: "180"
+      - key: PIPELINE_OCR_RENDER_TIMEOUT
+        value: "45"
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+      - key: FRONTEND_BASE_URL
         sync: false
