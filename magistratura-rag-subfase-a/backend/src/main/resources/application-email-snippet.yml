@@ -1,0 +1,5 @@
+# MERGE em application.yml sob app:
+app:
+  email:
+    mode: ${EMAIL_MODE:logging}   # logging | smtp
+    from: ${MAIL_FROM:noreply@magistratura.local}

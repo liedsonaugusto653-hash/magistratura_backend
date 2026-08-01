@@ -1,0 +1,19 @@
+PATCH v4 — causa raiz do "A iniciar processamento…" a 0%
+========================================================
+
+BUG CRÍTICO corrigido em DocumentoService.processar:
+  O @Async era disparado DENTRO da @Transactional, ANTES do commit.
+  A thread do job bloqueava no lock da linha documentos (ou não via
+  o estado/diploma) → mensagem eternamente "A iniciar processamento…".
+
+Correcção: TransactionSynchronization.afterCommit() antes de executar o job.
+
+Também inclui:
+  - DocumentoEstadoService.marcarErro (REQUIRES_NEW)
+  - PROTECTED → FALHA_EXTRACAO imediata (sem OCR/hang PDFBox)
+  - Timeouts na abertura PDF
+
+APÓS APLICAR: reinicia o backend + SQL reset + reprocessa.
+No log DEVE aparecer:
+  "TX commitada — a disparar job pipeline documento=..."
+  "Job pipeline iniciado documento=..."

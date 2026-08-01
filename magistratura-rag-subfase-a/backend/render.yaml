@@ -1,0 +1,20 @@
+services:
+  # Backend Service (Spring Boot Docker)
+  - type: web
+    name: magistratura-rag-backend
+    env: docker
+    plan: free
+    dockerfilePath: Dockerfile
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+      - key: SPRING_DATASOURCE_URL
+        sync: false # Cole a URL do Supabase (ex: jdbc:postgresql://db.xxxx.supabase.co:5432/postgres)
+      - key: SPRING_DATASOURCE_USERNAME
+        sync: false # Usuário do Supabase (postgres)
+      - key: SPRING_DATASOURCE_PASSWORD
+        sync: false # Senha do Supabase
+      - key: JWT_SECRET
+        generateValue: true
+      - key: GEMINI_API_KEY
+        sync: false

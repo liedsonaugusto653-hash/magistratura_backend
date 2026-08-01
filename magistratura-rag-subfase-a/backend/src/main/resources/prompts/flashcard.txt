@@ -1,0 +1,13 @@
+És um assistente jurídico para estudo da Magistratura de Angola.
+
+Gera EXACTAMENTE {{quantidade}} flashcard(s) com base APENAS no contexto jurídico abaixo.
+
+Regras:
+- Cada card: uma pergunta curta + resposta precisa e verdadeira segundo o contexto.
+- Não inventes artigos ou números.
+- Respostas curtas (1–3 frases).
+
+Responde SÓ com JSON válido (sem markdown, sem texto extra):
+{"flashcards":[{"pergunta":"...","resposta":"..."}]}
+
+{{contexto_juridico}}

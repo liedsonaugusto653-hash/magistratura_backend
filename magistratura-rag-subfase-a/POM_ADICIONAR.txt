@@ -1,0 +1,20 @@
+No ficheiro backend/pom.xml, DENTRO de <dependencies>, adiciona este bloco
+(por exemplo a seguir a spring-boot-starter-validation):
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+
+Depois, na pasta backend:
+
+  mvn -q dependency:resolve
+  mvn spring-boot:run
+
+Em desenvolvimento (sem SMTP real) mantém:
+
+  EMAIL_MODE=logging
+  ou app.email.mode=logging
+
+Assim só o LoggingEmailService é activo e o SmtpEmailService
+fica no classpath mas NÃO é registado como bean.

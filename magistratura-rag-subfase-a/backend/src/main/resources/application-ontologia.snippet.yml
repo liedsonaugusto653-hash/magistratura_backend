@@ -1,0 +1,20 @@
+# Merge into application.yml under `app:`:
+
+  ontologia:
+    # Após processar PDF, criar ligações tópico↔artigo automaticamente
+    auto-ligar: ${ONTOLOGIA_AUTO_LIGAR:true}
+    # Score mínimo (0–1) para aceitar uma ligação
+    min-score: ${ONTOLOGIA_MIN_SCORE:0.28}
+    # Máximo de tópicos por artigo
+    max-ligacoes-por-artigo: ${ONTOLOGIA_MAX_POR_ARTIGO:5}
+
+    # --- RAG / expansão conceptual ---
+    # Ao pesquisar com topicoId, incluir artigos de tópicos PRESSUPOSTOS
+    # (A PRESSUPOE B → estudar A traz também B, com score menor)
+    rag-expandir-pressupoe: ${ONTOLOGIA_RAG_PRESSUPOE:true}
+    # Níveis na cadeia PRESSUPOE (1 = só vizinhos directos)
+    rag-expansao-profundidade: ${ONTOLOGIA_RAG_PROFUNDIDADE:1}
+    # Multiplicador de score por nível (0.65 ≈ -35% por hop)
+    rag-expansao-factor-score: ${ONTOLOGIA_RAG_FACTOR:0.65}
+    # Tecto de tópicos visitados na expansão
+    rag-expansao-max-topicos: ${ONTOLOGIA_RAG_MAX_TOPICOS:8}

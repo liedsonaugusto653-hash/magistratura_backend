@@ -1,0 +1,17 @@
+﻿# Java / Spring Boot
+target/
+*.log
+
+# Node / Vue
+node_modules/
+dist/
+
+# Ambiente
+.env
+
+# IDE
+.idea/
+.vscode/
+
+# Sistema
+.DS_Store

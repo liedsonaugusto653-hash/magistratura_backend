@@ -1,0 +1,17 @@
+Magistratura — entrega Subfase A RAG
+
+Ambiente de build deste agente: Java 21 presente; Maven e PostgreSQL/Ollama NÃO disponíveis.
+Compilação completa (mvn clean package) não foi executada aqui — validar no Windows.
+
+Ficheiros novos:
+  backend/src/main/java/ao/magistratura/rag/LegalRetrievalService.java
+  backend/src/main/java/ao/magistratura/rag/RetrievalResult.java
+  backend/src/main/java/ao/magistratura/rag/RetrievedPassage.java
+
+Ficheiros alterados:
+  backend/src/main/java/ao/magistratura/service/TutorService.java
+  backend/src/main/java/ao/magistratura/ia/PromptBuilder.java
+  backend/src/main/java/ao/magistratura/repository/ArtigoRepository.java
+  backend/src/main/resources/prompts/tutor.txt
+
+Não alterado: frontend, migrations, entidades JPA, stack.

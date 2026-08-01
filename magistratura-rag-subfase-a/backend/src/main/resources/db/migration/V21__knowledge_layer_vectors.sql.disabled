@@ -1,0 +1,41 @@
+-- Knowledge Layer vector store (pgvector).
+-- PRÉ-REQUISITO: PostgreSQL com extensão pgvector (ex.: imagem Docker pgvector/pgvector:pg16).
+-- Se a extensão não existir, esta migration FALHA — manter app.knowledge.vector-store=noop
+-- até a infraestrutura estar pronta, ou adiar este ficheiro.
+
+CREATE EXTENSION IF NOT EXISTS vector;
+
+CREATE TABLE IF NOT EXISTS knowledge_vectors (
+    id                UUID PRIMARY KEY,
+    artigo_id         UUID REFERENCES artigos(id) ON DELETE CASCADE,
+    diploma_id        UUID REFERENCES diplomas(id) ON DELETE SET NULL,
+    documento_id      UUID REFERENCES documentos(id) ON DELETE CASCADE,
+    kind              VARCHAR(40) NOT NULL DEFAULT 'LEGISLACAO',
+    texto             TEXT NOT NULL,
+    embedding         vector(768),
+    modelo_embedding  VARCHAR(100) NOT NULL,
+    metadados         JSONB NOT NULL DEFAULT '{}',
+    criado_em         TIMESTAMPTZ NOT NULL DEFAULT now(),
+    atualizado_em     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_kv_diploma ON knowledge_vectors (diploma_id);
+CREATE INDEX IF NOT EXISTS idx_kv_artigo ON knowledge_vectors (artigo_id);
+CREATE INDEX IF NOT EXISTS idx_kv_documento ON knowledge_vectors (documento_id);
+CREATE INDEX IF NOT EXISTS idx_kv_modelo ON knowledge_vectors (modelo_embedding);
+CREATE INDEX IF NOT EXISTS idx_kv_kind ON knowledge_vectors (kind);
+
+CREATE INDEX IF NOT EXISTS idx_kv_embedding_hnsw
+    ON knowledge_vectors
+    USING hnsw (embedding vector_cosine_ops)
+    WITH (m = 16, ef_construction = 64);
+
+CREATE TABLE IF NOT EXISTS embedding_cache (
+    hash_texto        VARCHAR(64) NOT NULL,
+    modelo_embedding  VARCHAR(100) NOT NULL,
+    embedding         vector(768) NOT NULL,
+    criado_em         TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (hash_texto, modelo_embedding)
+);
+
+COMMENT ON TABLE knowledge_vectors IS 'Chunks RAG Knowledge Layer (separado de documento_embeddings legado)';
