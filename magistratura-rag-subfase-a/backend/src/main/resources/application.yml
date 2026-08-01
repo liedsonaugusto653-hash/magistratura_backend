@@ -6,15 +6,12 @@ spring:
     active: ${SPRING_PROFILES_ACTIVE:dev}
 
   datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:magistratura}
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:magistratura}?sslmode=require
     username: ${DB_USER:magistratura}
     password: ${DB_PASSWORD:magistratura}
     driver-class-name: org.postgresql.Driver
     hikari:
-      # Apenas lock_timeout (USERSET). deadlock_timeout exige privilégios que
-      # muitos roles de app não têm → "permission denied" e o arranque falha.
-      # Para desactivar: DB_CONNECTION_INIT_SQL= (vazio) ou omite a variável.
-      connection-init-sql: ${DB_CONNECTION_INIT_SQL:SELECT set_config('lock_timeout', '${DB_LOCK_TIMEOUT:8s}', false)}
+      connection-init-sql: ${DB_CONNECTION_INIT_SQL:}
       maximum-pool-size: ${DB_POOL_SIZE:10}
       connection-timeout: ${DB_CONNECTION_TIMEOUT_MS:30000}
 
@@ -39,14 +36,12 @@ spring:
       max-file-size: 50MB
       max-request-size: 50MB
 
-
 server:
-  port: ${SERVER_PORT:8080}
+  port: ${PORT:${SERVER_PORT:8080}}
 
   error:
     include-message: always
     include-binding-errors: always
-
 
 app:
 
@@ -56,18 +51,10 @@ app:
     secret: ${JWT_SECRET:change-this-secret-in-production-please-minimum-256-bits-long}
     expiration-ms: ${JWT_EXPIRATION:86400000}
 
-
   ollama:
     base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
     model: ${OLLAMA_MODEL:llama3.2:3b}
     timeout-seconds: ${OLLAMA_TIMEOUT:300}
-
-
-
-  # ---------------------------------------------------------------------------
-  # Fornecedor de IA (chat). Independente do Ollama de embeddings.
-  # Valores: ollama | gemini | openai | openrouter
-  # ---------------------------------------------------------------------------
 
   cache:
     rag-ttl-seconds: ${CACHE_RAG_TTL_SECONDS:120}
@@ -100,94 +87,47 @@ app:
     temperature: ${OPENROUTER_TEMPERATURE:0.25}
     max-tokens: ${OPENROUTER_MAX_TOKENS:2048}
 
-
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
-
 
   biblioteca:
     storage-path: ${BIBLIOTECA_STORAGE_PATH:./storage/documentos}
 
-
   knowledge:
-
     vector-store: ${KNOWLEDGE_VECTOR_STORE:noop}
-
     embedding-provider: ${KNOWLEDGE_EMBEDDING_PROVIDER:ollama}
-
     embedding-model: ${KNOWLEDGE_EMBEDDING_MODEL:nomic-embed-text}
-
     embedding-dimensions: ${KNOWLEDGE_EMBEDDING_DIMENSIONS:768}
-
     embedding-fail-soft: ${KNOWLEDGE_EMBEDDING_FAIL_SOFT:true}
-
     indexer: ${KNOWLEDGE_INDEXER:knowledge}
-
     default-top-k: 5
 
-
   pipeline:
-
     conhecimento-automatico: ${PIPELINE_CONHECIMENTO_AUTOMATICO:false}
-
     versao: 2.0.0
-
-    # Espelho documental do lock_timeout JDBC (ex.: 8s). Diagnóstico apenas.
     lock-timeout: ${DB_LOCK_TIMEOUT:8s}
 
-
     ocr:
-      # Ativa OCR quando PDF não tem texto seleccionável (scans / Diário Oficial)
       enabled: ${PIPELINE_OCR_ENABLED:true}
-
-      # Idioma Tesseract (por = português; por+eng se misturar)
       language: ${PIPELINE_OCR_LANGUAGE:por}
-
-      # Pasta tessdata. Vazio = auto-detect do sistema.
-      # Windows típico: C:/Program Files/Tesseract-OCR/tessdata
-      # Linux: /usr/share/tesseract-ocr/5/tessdata  (ou 4.00)
       datapath: ${PIPELINE_OCR_DATAPATH:}
-
-      # Rasterização: 250–300 recomendado para scans legislativos
       dpi: ${PIPELINE_OCR_DPI:250}
-
-      # Timeout por página na rasterização (segundos)
       render-timeout-seconds: ${PIPELINE_OCR_RENDER_TIMEOUT:30}
-
-      # 0 = todas as páginas
       max-pages: ${PIPELINE_OCR_MAX_PAGES:0}
-
-      # Page Segmentation Mode Tesseract (6 = bloco de texto uniforme)
       psm: ${PIPELINE_OCR_PSM:6}
-
-      # Pré-processamento (cinzento, contraste, Otsu na 2.ª tentativa)
       preprocess: ${PIPELINE_OCR_PREPROCESS:true}
-
-      # Se OCR < N chars na 1.ª passagem, tenta binarização Otsu
       retry-binarize-below-chars: ${PIPELINE_OCR_RETRY_BINARIZE:30}
-
-      # Mínimo de caracteres úteis no documento inteiro
       min-chars-uteis: ${PIPELINE_OCR_MIN_CHARS:40}
-
-      # Abaixo disto, a página é candidata a OCR (híbridos)
       min-chars-por-pagina: ${PIPELINE_OCR_MIN_CHARS_PAGE:15}
 
-
-
 springdoc:
-
   swagger-ui:
     path: /swagger-ui.html
 
   api-docs:
     path: /v3/api-docs
 
-
-
 logging:
-
   level:
-
     ao.magistratura: INFO
-
     org.springframework.security: INFO
