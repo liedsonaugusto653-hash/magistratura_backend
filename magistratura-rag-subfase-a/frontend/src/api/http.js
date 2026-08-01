@@ -5,23 +5,34 @@ export const TOKEN_KEY = 'magistratura_token'
 
 /**
  * Base da API.
- * - Dev (Vite proxy): '/api'
- * - Produção (Vercel): 'https://teu-backend.onrender.com/api' via VITE_API_BASE_URL
+ * Produção:
+ * - VITE_API_URL
+ * - ou VITE_API_BASE_URL (compatibilidade)
+ *
+ * Exemplo:
+ * VITE_API_URL=https://magistratura-backend.onrender.com/api
  */
 export function getApiBaseUrl() {
-  const raw = (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/$/, '')
+  const raw = (
+    import.meta.env.VITE_API_URL ||
+    import.meta.env.VITE_API_BASE_URL ||
+    ''
+  ).trim().replace(/\/$/, '')
+
   if (!raw) return '/api'
+
   return raw.endsWith('/api') ? raw : `${raw}/api`
 }
 
-/** URL absoluta para fetch/SSE (path começa por / sem duplicar /api). */
+/** URL absoluta para fetch/SSE. */
 export function apiUrl(path) {
   const base = getApiBaseUrl()
   const p = path.startsWith('/') ? path : `/${path}`
-  // base já inclui /api; path dos services costuma ser /ia/... ou relativo ao baseURL axios
+
   if (p.startsWith('/api/')) {
     return `${base.replace(/\/api$/, '')}${p}`
   }
+
   return `${base}${p}`
 }
 
@@ -35,8 +46,11 @@ export function getAuthToken() {
 
 export function setAuthToken(token) {
   try {
-    if (token) localStorage.setItem(TOKEN_KEY, token)
-    else localStorage.removeItem(TOKEN_KEY)
+    if (token) {
+      localStorage.setItem(TOKEN_KEY, token)
+    } else {
+      localStorage.removeItem(TOKEN_KEY)
+    }
   } catch {
     /* ignore */
   }
@@ -56,9 +70,11 @@ const http = axios.create({
 
 http.interceptors.request.use((config) => {
   const token = getAuthToken()
+
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
+
   return config
 })
 
@@ -66,9 +82,12 @@ http.interceptors.response.use(
   (response) => response,
   (error) => {
     const status = error.response?.status
+
     if (status === 401) {
       clearAuthToken()
+
       const path = window.location.pathname
+
       if (
         path !== '/login' &&
         path !== '/registo' &&
@@ -78,6 +97,7 @@ http.interceptors.response.use(
         window.location.href = '/login'
       }
     }
+
     return Promise.reject(error)
   }
 )
