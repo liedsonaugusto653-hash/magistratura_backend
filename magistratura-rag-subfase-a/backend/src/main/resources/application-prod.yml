@@ -15,7 +15,7 @@ spring:
 
   flyway:
     enabled: true
-    baseline-on-migrate: true
+    baseline-on-migrate: false
 
 server:
   port: ${PORT:8080}
@@ -25,5 +25,3 @@ server:
 
 cors:
   allowed-origins: "*"
-
-  
