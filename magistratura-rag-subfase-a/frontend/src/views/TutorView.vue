@@ -5,6 +5,7 @@ import bibliotecaService from '@/services/bibliotecaService'
 import { Send, Plus, Trash2, Sparkles, MessagesSquare, BookMarked, X, RotateCw } from 'lucide-vue-next'
 import { BaseSelect } from '@/components/ui'
 import FeatureArt from '@/components/brand/FeatureArt.vue'
+import OuvirTexto from '@/components/audio/OuvirTexto.vue'
 
 const tutor = useTutorStore()
 const texto = ref('')
@@ -393,6 +394,9 @@ const semConversa = computed(() => !tutor.conversaAtual)
                   @click.stop="abrirFonte(m, f.n)"
                 >[{{ f.n }}] {{ f.artigoNumero ? 'Art. ' + f.artigoNumero : 'Fonte' }}</button>
               </div>
+              <div v-if="!m.aEscrever && m.conteudo" class="mensagem-audio">
+                <OuvirTexto :texto="m.conteudo" label="Ouvir resposta" compacto />
+              </div>
             </template>
             <template v-else>
               {{ m.conteudo }}
@@ -417,6 +421,9 @@ const semConversa = computed(() => !tutor.conversaAtual)
           <span v-if="fonteActiva.seccao"> · {{ fonteActiva.seccao }}</span>
         </p>
         <div class="fonte-extrato">{{ fonteActiva.extrato }}</div>
+        <div v-if="fonteActiva.extrato" class="fonte-audio">
+          <OuvirTexto :texto="fonteActiva.extrato" label="Ouvir fonte" compacto />
+        </div>
         <router-link
           v-if="fonteActiva.artigoId"
           class="fonte-link"
@@ -885,6 +892,14 @@ const semConversa = computed(() => !tutor.conversaAtual)
   text-decoration: underline;
 }
 
+.mensagem-audio {
+  margin-top: 0.55rem;
+  padding-top: 0.45rem;
+  border-top: 1px dashed var(--color-border);
+}
+.fonte-audio {
+  margin-top: 0.55rem;
+}
 .chat {
   position: relative;
 }

@@ -228,17 +228,17 @@ function recarregar() {
       text="Pesquisa por número, título ou palavra do artigo. Abre um diploma para ler a estrutura completa."
     />
 
-    <!-- Barra de pesquisa -->
+    <!-- Barra de pesquisa (SearchInput já inclui o botão Pesquisar) -->
     <div class="toolbar">
       <div class="toolbar-search">
         <SearchInput
           v-model="termo"
           placeholder="Pesquisar diplomas ou artigos…"
-          @submit="pesquisar"
+          hint="Podes pesquisar por número, título ou palavra-chave do artigo."
+          @search="pesquisar"
           @clear="limparPesquisa"
         />
       </div>
-      <BaseButton variant="primary" @click="pesquisar">Pesquisar</BaseButton>
     </div>
 
     <LoadingState v-if="store.carregando && !diplomaSelecionado && !modoFormDiploma" message="A carregar a biblioteca…" />
@@ -451,6 +451,13 @@ function recarregar() {
 .toolbar-search {
   flex: 1;
   min-width: 0;
+}
+.toolbar-search :deep(.search-wrap) {
+  max-width: 100%;
+  margin: 0;
+}
+.toolbar-search :deep(.search-bar) {
+  width: 100%;
 }
 
 .panel {

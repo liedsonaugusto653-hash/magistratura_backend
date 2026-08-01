@@ -39,8 +39,9 @@ defineEmits(['update:modelValue', 'search', 'clear'])
 
 <style scoped>
 .search-wrap {
-  max-width: 680px;
-  margin: 0 auto 1.75rem;
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
 }
 .search-bar {
   display: flex;

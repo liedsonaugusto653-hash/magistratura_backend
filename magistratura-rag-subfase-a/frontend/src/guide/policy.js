@@ -32,7 +32,7 @@ const lastShown = new Map()
 
 const TEMPLATES = {
   FIRST_LOGIN: () => ({
-    text: 'Bem-vindo. Podes começar pela Biblioteca, perguntar ao Tutor ou seguir as Experiências.',
+    text: 'Olá! Estou aqui para te acompanhar na preparação. Queres começar pela Biblioteca, conversar com o Tutor IA ou seguir as Experiências guiadas?',
     actions: [
       { id: 'biblioteca', label: 'Biblioteca', to: '/biblioteca' },
       { id: 'tutor', label: 'Tutor IA', to: '/tutor' },
@@ -42,7 +42,7 @@ const TEMPLATES = {
     priority: 12
   }),
   RETURN_WITH_MEMORY: (p) => ({
-    text: p.hook || 'Bom regresso. Podes retomar o estudo onde paraste.',
+    text: p.hook || 'Que bom ver-te de volta! Podes retomar exactamente onde paraste — eu lembro-me do teu percurso.',
     actions: [
       { id: 'continuar', label: 'Continuar', to: p.to || '/dashboard' },
       { id: 'biblioteca', label: 'Biblioteca', to: '/biblioteca' },
@@ -53,7 +53,7 @@ const TEMPLATES = {
   ENTER_LIBRARY: (p) => ({
     text:
       p.mensagem ||
-      'Na Biblioteca encontras diplomas e artigos. Abre um artigo para estudar, ou importa um PDF em Documentos.',
+      'Aqui está a tua Biblioteca jurídica. Pesquisa um diploma, abre um artigo para estudar com calma, ou importa um PDF novo em Documentos.',
     actions: [
       { id: 'docs', label: 'Importar PDF', to: '/documentos' },
       { id: 'tutor', label: 'Tutor IA', to: '/tutor' },
@@ -64,8 +64,8 @@ const TEMPLATES = {
   QUESTION_ANSWERED: (p) => {
     const ok = p.correta === true
     const base = ok
-      ? 'Boa! Resposta correcta. Queres continuar a praticar ou rever o tema na Biblioteca?'
-      : 'Não foi desta. Vale a pena rever o artigo ou pedir uma explicação ao Tutor.'
+      ? 'Excelente! Acertaste. Queres continuar a praticar ou rever o tema com calma na Biblioteca?'
+      : 'Não foi desta vez — faz parte do processo. Vale a pena rever o artigo ou pedir uma explicação ao Tutor.'
     return {
       text: p.mensagem || base,
       actions: ok
@@ -94,7 +94,7 @@ const TEMPLATES = {
     priority: 5
   }),
   DOCUMENT_FAILED: (p) => ({
-    text: p.mensagem || 'O processamento deste documento falhou. Podes tentar novamente em Documentos.',
+    text: p.mensagem || 'O processamento deste documento encontrou um problema. Podes tentar de novo em Documentos — se precisares, eu oriento-te.',
     actions: [
       { id: 'docs', label: 'Abrir Documentos', to: '/documentos' },
       { id: 'ok', label: 'Percebi', dismiss: true }
@@ -104,7 +104,7 @@ const TEMPLATES = {
   EMPTY_SEARCH: (p) => ({
     text:
       p.mensagem ||
-      'Não há resultados com esses termos. Experimenta outras palavras ou pergunta ao Tutor.',
+      'Hmm, não encontrei nada com esses termos. Experimenta palavras mais genéricas, o número do diploma, ou pergunta directamente ao Tutor — ele ajuda a orientar a pesquisa.',
     actions: [
       { id: 'tutor', label: 'Perguntar ao Tutor', to: '/tutor' },
       { id: 'biblioteca', label: 'Voltar à Biblioteca', to: '/biblioteca' },
@@ -115,7 +115,7 @@ const TEMPLATES = {
   ARTICLE_OPENED: (p) => ({
     text:
       p.mensagem ||
-      'Estás a ler um artigo. Podes pedir explicação ao Tutor ou gerar questões sobre este tema.',
+      'Bom artigo para estudar. Se quiseres, posso sugerir uma explicação com o Tutor ou gerar questões para consolidar o que estás a ler.',
     actions: [
       { id: 'tutor', label: 'Perguntar ao Tutor', to: '/tutor' },
       { id: 'questoes', label: 'Questões', to: '/questoes' },
@@ -135,7 +135,7 @@ const TEMPLATES = {
     priority: 7
   }),
   CHAPTER_COMPLETED: (p) => ({
-    text: p.mensagem || 'Capítulo concluído. Podes continuar as Experiências ou consolidar com questões.',
+    text: p.mensagem || 'Parabéns — capítulo concluído! Queres continuar as Experiências ou consolidar já com algumas questões?',
     actions: [
       { id: 'continuar', label: 'Continuar', to: p.to || '/caminhada' },
       { id: 'questoes', label: 'Questões', to: '/questoes' },
@@ -144,7 +144,7 @@ const TEMPLATES = {
     priority: 8
   }),
   IDLE_LONG: () => ({
-    text: 'Ainda por aqui? Podes retomar: Biblioteca, Tutor, questões ou as Experiências nas Experiências.',
+    text: 'Ainda por aqui? Sem pressa. Quando quiseres, podes retomar na Biblioteca, no Tutor, nas questões ou nas Experiências.',
     actions: [
       { id: 'biblioteca', label: 'Biblioteca', to: '/biblioteca' },
       { id: 'tutor', label: 'Tutor', to: '/tutor' },
@@ -154,7 +154,7 @@ const TEMPLATES = {
     priority: 3
   }),
   FEATURE_UNAVAILABLE: (p) => ({
-    text: p.mensagem || 'Ainda não está disponível — falta conteúdo processado na Biblioteca.',
+    text: p.mensagem || 'Esta funcionalidade ainda precisa de conteúdo processado na Biblioteca. Importa um PDF e processa-o para desbloquear.',
     actions: [
       { id: 'docs', label: 'Importar documentos', to: '/documentos' },
       { id: 'ok', label: 'Percebi', dismiss: true }
@@ -162,7 +162,7 @@ const TEMPLATES = {
     priority: 6
   }),
   GENERIC_ERROR: (p) => ({
-    text: p.mensagem || 'Aconteceu um pequeno problema. Podemos tentar de outro caminho.',
+    text: p.mensagem || 'Ops, aconteceu um pequeno problema. Não te preocupes — podemos tentar por outro caminho.',
     actions: [
       { id: 'biblioteca', label: 'Biblioteca', to: '/biblioteca' },
       { id: 'ok', label: 'Percebi', dismiss: true }
@@ -170,7 +170,7 @@ const TEMPLATES = {
     priority: 9
   }),
   CONTINUE_WALK: (p) => ({
-    text: p.hook || 'Podes continuar as Experiências ou estudar o texto na Biblioteca.',
+    text: p.hook || 'Boa altura para avançar: podes continuar as Experiências ou estudar o texto com calma na Biblioteca.',
     actions: [
       { id: 'continuar', label: 'Continuar experiência', to: p.to || '/caminhada' },
       { id: 'biblioteca', label: 'Biblioteca', to: '/biblioteca' },
@@ -179,7 +179,7 @@ const TEMPLATES = {
     priority: 8
   }),
   SCENE_CTA: (p) => ({
-    text: p.mensagem || 'Há uma experiência pronta para este tema.',
+    text: p.mensagem || 'Há uma experiência pronta para este tema — é uma forma viva de fixar o conteúdo. Queres experimentá-la?',
     actions: [
       { id: 'ver', label: 'Ver experiência', to: p.to || '/caminhada' },
       { id: 'agora_nao', label: 'Agora não', dismiss: true }
@@ -187,7 +187,7 @@ const TEMPLATES = {
     priority: 7
   }),
   NAVIGATE_AWAY_WHILE_PROCESSING: (p) => ({
-    text: p.mensagem || 'O documento continua a processar em segundo plano. Podes voltar a Documentos a qualquer momento.',
+    text: p.mensagem || 'O documento continua a processar em segundo plano. Podes seguir a estudar e voltar a Documentos quando quiseres ver o progresso.',
     actions: [
       { id: 'docs', label: 'Documentos', to: '/documentos' },
       { id: 'ok', label: 'OK', dismiss: true }
@@ -195,7 +195,7 @@ const TEMPLATES = {
     priority: 6
   }),
   SUGGEST_PRACTICE: (p) => ({
-    text: p.mensagem || 'Já leste bastante texto. Que tal consolidar com questões ou flashcards?',
+    text: p.mensagem || 'Já leste bastante — excelente ritmo. Que tal consolidar agora com questões ou flashcards?',
     actions: [
       { id: 'questoes', label: 'Questões', to: '/questoes' },
       { id: 'flash', label: 'Flashcards', to: '/flashcards' },
