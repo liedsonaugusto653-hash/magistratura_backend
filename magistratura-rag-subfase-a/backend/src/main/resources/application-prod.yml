@@ -1,12 +1,14 @@
 # Profile: prod — Render Free / produção com RAM limitada
 spring:
+  main:
+    lazy-initialization: false
+
   datasource:
     url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=require
     username: ${DB_USER}
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
     hikari:
-      # 2–3 conexões bastam no free tier; cada conexão PostgreSQL ocupa memória JVM + native
       maximum-pool-size: ${DB_POOL_SIZE:3}
       minimum-idle: 1
       connection-timeout: 15000
@@ -40,6 +42,12 @@ server:
       min-spare: 2
   error:
     include-message: always
+
+springdoc:
+  api-docs:
+    enabled: ${SPRINGDOC_ENABLED:false}
+  swagger-ui:
+    enabled: ${SPRINGDOC_ENABLED:false}
 
 cors:
   allowed-origins: "*"
