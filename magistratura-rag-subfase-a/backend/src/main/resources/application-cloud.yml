@@ -1,4 +1,4 @@
-# Profile: cloud (Render + Neon + Groq)
+# Profile: cloud (Render + Neon/Supabase + Groq)
 # NÃO activa as regras estritas de ProductionStartupValidator (só prod/production).
 # Arranque: SPRING_PROFILES_ACTIVE=cloud
 
@@ -6,8 +6,23 @@ spring:
   jpa:
     show-sql: false
   datasource:
-    # Neon exige SSL — sobrescreve URL se DB_HOST estiver definido
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:magistratura}?sslmode=${DB_SSLMODE:require}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:3}
+      minimum-idle: 1
+      connection-timeout: 15000
+      idle-timeout: 180000
+      max-lifetime: 600000
+  servlet:
+    multipart:
+      max-file-size: ${UPLOAD_MAX_FILE_SIZE:12MB}
+      max-request-size: ${UPLOAD_MAX_REQUEST_SIZE:12MB}
+
+server:
+  tomcat:
+    threads:
+      max: ${TOMCAT_MAX_THREADS:40}
+      min-spare: 2
 
 logging:
   level:
@@ -36,3 +51,12 @@ app:
     model: ${OPENAI_MODEL:llama-3.3-70b-versatile}
     base-url: ${OPENAI_BASE_URL:https://api.groq.com/openai/v1}
     timeout-seconds: ${OPENAI_TIMEOUT:120}
+
+  cache:
+    rag-ttl-seconds: 60
+    rag-max-size: 48
+
+  pipeline:
+    ocr:
+      dpi: ${PIPELINE_OCR_DPI:150}
+      max-pages: ${PIPELINE_OCR_MAX_PAGES:40}

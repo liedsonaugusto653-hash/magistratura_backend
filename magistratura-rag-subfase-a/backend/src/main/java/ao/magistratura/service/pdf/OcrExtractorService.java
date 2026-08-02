@@ -25,8 +25,9 @@ import java.util.function.BiConsumer;
  * OCR determinístico via Tesseract (Tess4J) para PDFs sem camada de texto
  * (scans do Diário da República, acórdãos, decretos em imagem).
  * <p>
- * Melhorias: pré-processamento de imagem, 2.ª tentativa Otsu, OCR selectivo
- * de páginas (híbridos), DPI/PSM configuráveis.
+ * Optimizado para free tier: raster GRAY (não RGB), DPI reduzido por omissão,
+ * libertação explícita de {@link BufferedImage} após cada página, e limite
+ * de páginas configurável para evitar OOM.
  */
 @Service
 public class OcrExtractorService {
@@ -42,10 +43,10 @@ public class OcrExtractorService {
     @Value("${app.pipeline.ocr.datapath:}")
     private String datapath;
 
-    @Value("${app.pipeline.ocr.dpi:250}")
+    @Value("${app.pipeline.ocr.dpi:150}")
     private int dpi;
 
-    @Value("${app.pipeline.ocr.max-pages:0}")
+    @Value("${app.pipeline.ocr.max-pages:40}")
     private int maxPages;
 
     @Value("${app.pipeline.ocr.render-timeout-seconds:30}")
@@ -69,9 +70,8 @@ public class OcrExtractorService {
             if (t == null) {
                 return false;
             }
-            // Smoke test: se tessdata/idioma faltarem, falha já — evita hang no doOCR.
-            java.awt.image.BufferedImage img =
-                    new java.awt.image.BufferedImage(16, 16, java.awt.image.BufferedImage.TYPE_BYTE_GRAY);
+            BufferedImage img =
+                    new BufferedImage(16, 16, BufferedImage.TYPE_BYTE_GRAY);
             t.doOCR(img);
             return true;
         } catch (Exception e) {
@@ -103,6 +103,9 @@ public class OcrExtractorService {
         List<PaginaTexto> paginas = new ArrayList<>();
         ITesseract tesseract = criarTesseract();
 
+        // DPI efectivo: nunca abaixo de 100 (ilegível) nem acima de 300 (risco OOM)
+        final int dpiEfectivo = Math.min(300, Math.max(100, dpi));
+
         try (PDDocument documento = PdfLoadHelper.loadComTimeout(ficheiro, 20)) {
             PdfLoadHelper.PermissoesPdf perm = PdfLoadHelper.inspeccionar(documento);
             if (perm.bloqueadoTotalmente()
@@ -130,7 +133,7 @@ public class OcrExtractorService {
                     : (int) alvo.stream().filter(p -> p >= 1 && p <= limite).count();
 
             log.info("OCR a iniciar: {} páginas no PDF, a processar≈{} dpi={} lang={} preprocess={} ficheiro={}",
-                    total, aProcessar, dpi, language, preprocessEnabled, ficheiro.getName());
+                    total, aProcessar, dpiEfectivo, language, preprocessEnabled, ficheiro.getName());
 
             int falhasRaster = 0;
             int processadas = 0;
@@ -143,10 +146,11 @@ public class OcrExtractorService {
                 }
 
                 final int pageIndex = i;
-                BufferedImage image;
+                BufferedImage image = null;
                 try {
+                    // GRAY em vez de RGB: ~1/3 da memória por página rasterizada
                     Callable<BufferedImage> renderTask =
-                            () -> renderer.renderImageWithDPI(pageIndex, dpi, ImageType.RGB);
+                            () -> renderer.renderImageWithDPI(pageIndex, dpiEfectivo, ImageType.GRAY);
                     image = PdfLoadHelper.comTimeout(
                             "rasterizar página " + numPagina,
                             renderTimeoutSeconds,
@@ -167,7 +171,17 @@ public class OcrExtractorService {
                     continue;
                 }
 
-                String texto = ocrComPreprocessamento(tesseract, image, numPagina);
+                String texto;
+                try {
+                    texto = ocrComPreprocessamento(tesseract, image, numPagina);
+                } finally {
+                    // Libertar píxeis o mais cedo possível — crítico no free tier
+                    if (image != null) {
+                        image.flush();
+                        image = null;
+                    }
+                }
+
                 paginas.add(new PaginaTexto(numPagina, texto));
                 processadas++;
 
@@ -206,23 +220,35 @@ public class OcrExtractorService {
     }
 
     private String ocrComPreprocessamento(ITesseract tesseract, BufferedImage original, int numPagina) {
-        BufferedImage preparada = preprocessEnabled
-                ? ImageOcrPreprocessor.prepararPadrao(original)
-                : original;
+        BufferedImage preparada = null;
+        BufferedImage bin = null;
+        try {
+            preparada = preprocessEnabled
+                    ? ImageOcrPreprocessor.prepararPadrao(original)
+                    : original;
 
-        String texto = doOcrSafe(tesseract, preparada, numPagina);
-        int len = texto.trim().length();
+            String texto = doOcrSafe(tesseract, preparada, numPagina);
+            int len = texto.trim().length();
 
-        if (preprocessEnabled && len < retryBinarizeBelowChars) {
-            log.debug("Pág. {}: OCR fraco ({} chars) — a tentar binarização Otsu", numPagina, len);
-            BufferedImage bin = ImageOcrPreprocessor.prepararBinario(original);
-            String texto2 = doOcrSafe(tesseract, bin, numPagina);
-            if (texto2.trim().length() > len) {
-                texto = texto2;
-                log.debug("Pág. {}: Otsu melhorou {} → {} chars", numPagina, len, texto.trim().length());
+            if (preprocessEnabled && len < retryBinarizeBelowChars) {
+                log.debug("Pág. {}: OCR fraco ({} chars) — a tentar binarização Otsu", numPagina, len);
+                bin = ImageOcrPreprocessor.prepararBinario(original);
+                String texto2 = doOcrSafe(tesseract, bin, numPagina);
+                if (texto2.trim().length() > len) {
+                    texto = texto2;
+                    log.debug("Pág. {}: Otsu melhorou {} → {} chars", numPagina, len, texto.trim().length());
+                }
+            }
+            return texto;
+        } finally {
+            // Não flushar original (o caller trata); flush das derivadas do preprocessamento
+            if (preparada != null && preparada != original) {
+                preparada.flush();
+            }
+            if (bin != null) {
+                bin.flush();
             }
         }
-        return texto;
     }
 
     private String doOcrSafe(ITesseract tesseract, BufferedImage image, int numPagina) {
@@ -248,7 +274,8 @@ public class OcrExtractorService {
             tesseract.setOcrEngineMode(1);
         } catch (Exception ignored) {
         }
-        tesseract.setVariable("user_defined_dpi", String.valueOf(dpi));
+        int dpiEfectivo = Math.min(300, Math.max(100, dpi));
+        tesseract.setVariable("user_defined_dpi", String.valueOf(dpiEfectivo));
         tesseract.setVariable("preserve_interword_spaces", "1");
         return tesseract;
     }

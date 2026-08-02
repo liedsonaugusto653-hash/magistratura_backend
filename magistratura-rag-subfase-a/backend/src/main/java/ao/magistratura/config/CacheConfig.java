@@ -12,7 +12,8 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Cache local (Caffeine) — RAG e leituras quentes.
- * Em multi-instância, evoluir para Redis mantendo os mesmos nomes de cache.
+ * Tamanhos reduzidos por omissão para free tier (cada entrada pode conter
+ * extratos jurídicos longos). Em multi-instância, evoluir para Redis.
  */
 @Configuration
 @EnableCaching
@@ -23,13 +24,13 @@ public class CacheConfig {
 
     @Bean
     public CacheManager cacheManager(
-            @Value("${app.cache.rag-ttl-seconds:120}") long ragTtlSeconds,
-            @Value("${app.cache.rag-max-size:512}") int ragMaxSize
+            @Value("${app.cache.rag-ttl-seconds:90}") long ragTtlSeconds,
+            @Value("${app.cache.rag-max-size:64}") int ragMaxSize
     ) {
         CaffeineCacheManager manager = new CaffeineCacheManager(RAG_QUERIES, ARTIGO_BY_ID);
         manager.setCaffeine(Caffeine.newBuilder()
-                .expireAfterWrite(ragTtlSeconds, TimeUnit.SECONDS)
-                .maximumSize(ragMaxSize)
+                .expireAfterWrite(Math.max(30, ragTtlSeconds), TimeUnit.SECONDS)
+                .maximumSize(Math.max(16, ragMaxSize))
                 .recordStats());
         return manager;
     }

@@ -6,7 +6,7 @@ RUN mvn dependency:go-offline -B
 COPY src ./src
 RUN mvn package -DskipTests
 
-# Step 2: Run Application
+# Step 2: Run Application — optimizado para Render Free (512 MB RAM)
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 
@@ -17,6 +17,27 @@ COPY --from=build /app/target/*.jar app.jar
 EXPOSE 8080
 ENV PORT=8080
 ENV TESSDATA_PREFIX=/usr/share/tessdata
+ENV JAVA_TOOL_OPTIONS=""
 
-# -Xmx limitado ao free tier do Render (512MB) para evitar OOM-kill do container
-ENTRYPOINT ["sh", "-c", "java -Xmx350m -XX:MaxMetaspaceSize=128m -Dserver.port=${PORT} -jar app.jar"]
+# Heap limitado ao free tier do Render (512 MB total do container).
+# SerialGC: melhor para heaps < ~400 MB e poucos cores (menos overhead que G1).
+# ExitOnOutOfMemoryError: o processo sai de forma limpa para o Render reiniciar,
+# em vez de ficar a servir respostas corrompidas após OOM.
+# MaxMetaspaceSize baixo: evita metaspace crescer sem controlo.
+# AlwaysPreTouch desligado (default) para arranque mais leve.
+ENTRYPOINT ["sh", "-c", "exec java \
+  -Xms64m \
+  -Xmx320m \
+  -XX:MaxMetaspaceSize=96m \
+  -XX:ReservedCodeCacheSize=48m \
+  -XX:+UseSerialGC \
+  -XX:MaxHeapFreeRatio=40 \
+  -XX:MinHeapFreeRatio=20 \
+  -XX:+ExitOnOutOfMemoryError \
+  -XX:+HeapDumpOnOutOfMemoryError \
+  -XX:HeapDumpPath=/tmp/heapdump.hprof \
+  -Djava.awt.headless=true \
+  -Dfile.encoding=UTF-8 \
+  -Djava.security.egd=file:/dev/./urandom \
+  -Dserver.port=${PORT} \
+  -jar app.jar"]

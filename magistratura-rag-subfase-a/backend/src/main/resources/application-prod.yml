@@ -1,9 +1,18 @@
+# Profile: prod — Render Free / produção com RAM limitada
 spring:
   datasource:
     url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=require
     username: ${DB_USER}
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      # 2–3 conexões bastam no free tier; cada conexão PostgreSQL ocupa memória JVM + native
+      maximum-pool-size: ${DB_POOL_SIZE:3}
+      minimum-idle: 1
+      connection-timeout: 15000
+      idle-timeout: 180000
+      max-lifetime: 600000
+      leak-detection-threshold: 45000
 
   jpa:
     hibernate:
@@ -12,16 +21,41 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: false
 
   flyway:
     enabled: true
     baseline-on-migrate: false
 
+  servlet:
+    multipart:
+      max-file-size: ${UPLOAD_MAX_FILE_SIZE:12MB}
+      max-request-size: ${UPLOAD_MAX_REQUEST_SIZE:12MB}
+
 server:
   port: ${PORT:8080}
-
+  tomcat:
+    threads:
+      max: ${TOMCAT_MAX_THREADS:40}
+      min-spare: 2
   error:
     include-message: always
 
 cors:
   allowed-origins: "*"
+
+app:
+  cache:
+    rag-ttl-seconds: 60
+    rag-max-size: 48
+  pipeline:
+    ocr:
+      dpi: ${PIPELINE_OCR_DPI:150}
+      max-pages: ${PIPELINE_OCR_MAX_PAGES:40}
+
+logging:
+  level:
+    root: INFO
+    ao.magistratura: INFO
+    org.hibernate.SQL: WARN
+    com.zaxxer.hikari: INFO

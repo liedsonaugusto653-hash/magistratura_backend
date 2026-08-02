@@ -12,8 +12,13 @@ spring:
     driver-class-name: org.postgresql.Driver
     hikari:
       connection-init-sql: ${DB_CONNECTION_INIT_SQL:}
-      maximum-pool-size: ${DB_POOL_SIZE:10}
-      connection-timeout: ${DB_CONNECTION_TIMEOUT_MS:30000}
+      # Pool pequeno por omissão — free tier (512 MB). Sobrescrever com DB_POOL_SIZE em máquinas maiores.
+      maximum-pool-size: ${DB_POOL_SIZE:5}
+      minimum-idle: ${DB_POOL_MIN_IDLE:1}
+      connection-timeout: ${DB_CONNECTION_TIMEOUT_MS:20000}
+      idle-timeout: ${DB_IDLE_TIMEOUT_MS:300000}
+      max-lifetime: ${DB_MAX_LIFETIME_MS:900000}
+      leak-detection-threshold: ${DB_LEAK_DETECTION_MS:60000}
 
   jpa:
     hibernate:
@@ -24,6 +29,9 @@ spring:
         format_sql: true
         jdbc:
           time_zone: UTC
+          batch_size: 25
+        order_inserts: true
+        order_updates: true
 
   flyway:
     out-of-order: true
@@ -33,15 +41,43 @@ spring:
 
   servlet:
     multipart:
-      max-file-size: 50MB
-      max-request-size: 50MB
+      # 15 MB: suficiente para diplomas típicos; evita OOM ao carregar PDF + raster OCR
+      max-file-size: ${UPLOAD_MAX_FILE_SIZE:15MB}
+      max-request-size: ${UPLOAD_MAX_REQUEST_SIZE:15MB}
+
+  # Tomcat: menos threads = menos stack memory reservada
+  threads:
+    virtual:
+      enabled: false
 
 server:
   port: ${PORT:${SERVER_PORT:8080}}
-
+  tomcat:
+    threads:
+      max: ${TOMCAT_MAX_THREADS:50}
+      min-spare: ${TOMCAT_MIN_SPARE:2}
+    accept-count: 25
+    max-http-form-post-size: 15MB
+    max-swallow-size: 15MB
   error:
     include-message: always
     include-binding-errors: always
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
 
 app:
 
@@ -57,8 +93,9 @@ app:
     timeout-seconds: ${OLLAMA_TIMEOUT:300}
 
   cache:
-    rag-ttl-seconds: ${CACHE_RAG_TTL_SECONDS:120}
-    rag-max-size: ${CACHE_RAG_MAX_SIZE:512}
+    # Cache pequeno: cada entrada RAG pode ter texto jurídico longo
+    rag-ttl-seconds: ${CACHE_RAG_TTL_SECONDS:90}
+    rag-max-size: ${CACHE_RAG_MAX_SIZE:64}
 
   ia:
     provider: ${IA_PROVIDER:ollama}
@@ -111,9 +148,11 @@ app:
       enabled: ${PIPELINE_OCR_ENABLED:true}
       language: ${PIPELINE_OCR_LANGUAGE:por}
       datapath: ${PIPELINE_OCR_DATAPATH:}
-      dpi: ${PIPELINE_OCR_DPI:250}
+      # 150 DPI: ~60% menos RAM por página vs 250; qualidade ainda boa para legislação
+      dpi: ${PIPELINE_OCR_DPI:150}
       render-timeout-seconds: ${PIPELINE_OCR_RENDER_TIMEOUT:30}
-      max-pages: ${PIPELINE_OCR_MAX_PAGES:0}
+      # Limite de páginas por documento no free tier (0 = sem limite em dev com RAM alta)
+      max-pages: ${PIPELINE_OCR_MAX_PAGES:40}
       psm: ${PIPELINE_OCR_PSM:6}
       preprocess: ${PIPELINE_OCR_PREPROCESS:true}
       retry-binarize-below-chars: ${PIPELINE_OCR_RETRY_BINARIZE:30}
@@ -123,7 +162,6 @@ app:
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
-
   api-docs:
     path: /v3/api-docs
 
