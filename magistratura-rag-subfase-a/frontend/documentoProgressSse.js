@@ -1,8 +1,11 @@
-import { TOKEN_KEY } from '@/api/http'
+import { TOKEN_KEY, apiUrl } from '@/api/http'
 
 /**
  * Subscreve SSE de progresso do documento via fetch (suporta Bearer JWT).
  * EventSource nativo não envia Authorization.
+ *
+ * Em 401/403 (token inválido após reset da BD, logout, etc.): limpa o token
+ * e redirecciona para /login — evita AccessDenied silencioso e UI presa a 0%.
  *
  * @param {string} documentoId
  * @param {{ onProgress?: Function, onDone?: Function, onError?: Function }} handlers
@@ -14,7 +17,7 @@ export function subscreverProgressoDocumento(documentoId, handlers = {}) {
 
   ;(async () => {
     try {
-      const res = await fetch(`/api/documentos/${documentoId}/progress`, {
+      const res = await fetch(apiUrl(`/documentos/${documentoId}/progress`), {
         method: 'GET',
         headers: {
           Accept: 'text/event-stream',
@@ -22,10 +25,28 @@ export function subscreverProgressoDocumento(documentoId, handlers = {}) {
         },
         signal: ctrl.signal
       })
+
+      if (res.status === 401 || res.status === 403) {
+        try {
+          localStorage.removeItem(TOKEN_KEY)
+        } catch (_) {}
+        handlers.onError?.({
+          mensagem: 'Sessão expirada ou inválida. Faça login novamente.',
+          codigo: 'AUTH_SSE',
+          status: res.status
+        })
+        // Redirecionar só se ainda estivermos na app (não em testes)
+        if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
+          window.location.assign('/login')
+        }
+        return
+      }
+
       if (!res.ok) {
         handlers.onError?.({ mensagem: `SSE HTTP ${res.status}` })
         return
       }
+
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
       let buffer = ''
@@ -52,6 +73,7 @@ export function subscreverProgressoDocumento(documentoId, handlers = {}) {
           } catch {
             payload = { mensagem: data }
           }
+          if (eventName === 'heartbeat') continue
           if (eventName === 'progress') handlers.onProgress?.(payload)
           else if (eventName === 'done') handlers.onDone?.(payload)
           else if (eventName === 'error') handlers.onError?.(payload)

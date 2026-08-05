@@ -132,10 +132,13 @@ export const useJornadaStore = defineStore('jornada', {
       const concluidos = new Set(this.progress.concluidos || [])
       concluidos.add(m.id)
       this.progress.concluidos = [...concluidos]
-      const next = this.seed.momentos.find((x) => x.ordem === m.ordem + 1)
+      // Próximo na sequência curricular (lista já ordenada por módulo + ordem)
+      const lista = this.seed.momentos || []
+      const idx = lista.findIndex((x) => x.id === m.id)
+      const next = idx >= 0 ? lista[idx + 1] : null
       if (next) {
         this.progress.momentoId = next.id
-        this.progress.cenaId = next.cenas[0]?.id || null
+        this.progress.cenaId = next.cenas?.[0]?.id || null
       }
       saveLocal(this.progress)
       this.actualizarHook()

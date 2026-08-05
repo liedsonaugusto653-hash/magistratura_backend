@@ -1,10 +1,13 @@
 <script setup>
+import PageHint from '@/components/ui/PageHint.vue'
+import { confirmarEliminacao } from '@/utils/prefsUi'
 import { ref, reactive, onMounted, onUnmounted, computed } from 'vue'
 import { UploadCloud, FileText, PlayCircle, ExternalLink, Plus, Trash2 } from 'lucide-vue-next'
 import { BaseSelect } from '@/components/ui'
 import documentoService from '@/services/documentoService'
 import { subscreverProgressoDocumento } from '@/services/documentoProgressSse'
 import bibliotecaService from '@/services/bibliotecaService'
+import { PageHero } from '@/components/ui'
 
 // --- Upload ---
 const form = reactive({
@@ -60,7 +63,9 @@ async function enviarDocumento() {
       oficial: form.oficial,
       dataPublicacao: form.dataPublicacao || undefined
     })
-    sucessoUpload.value = `Documento "${doc.titulo}" importado com sucesso.`
+    sucessoUpload.value = doc.tipoPdf === 'PROTECTED'
+      ? `Documento "${doc.titulo}" importado — atenção: PDF com protecção. Exporte sem restrições antes de processar.`
+      : `Documento "${doc.titulo}" importado com sucesso.`
     form.ficheiro = null
     form.titulo = ''
     form.categoriaId = ''
@@ -93,7 +98,36 @@ async function carregarDocumentos() {
 const diplomas = ref([])
 const processandoId = ref(null)
 const processamentoAtivo = reactive({})
-const progressoUi = reactive({}) // { [id]: { mensagem, percentagem } }
+const progressoUi = reactive({}) // { [id]: { mensagem, percentagem, segundos, estimado } }
+const progressoTimers = {} // { [id]: intervalId }
+
+function iniciarCronometroProgresso(docId) {
+  pararCronometroProgresso(docId)
+  if (!progressoUi[docId]) {
+    progressoUi[docId] = { mensagem: 'A processar…', percentagem: 0, segundos: 0, estimado: '1–5 min' }
+  } else {
+    progressoUi[docId].segundos = 0
+    progressoUi[docId].estimado = progressoUi[docId].estimado || '1–5 min'
+  }
+  progressoTimers[docId] = setInterval(() => {
+    if (!progressoUi[docId]) return
+    progressoUi[docId].segundos = (progressoUi[docId].segundos || 0) + 1
+    const s = progressoUi[docId].segundos
+    // Estimativa dinâmica grosseira
+    if (s < 30) progressoUi[docId].estimado = '1–3 min'
+    else if (s < 90) progressoUi[docId].estimado = '2–5 min'
+    else if (s < 180) progressoUi[docId].estimado = '3–8 min'
+    else progressoUi[docId].estimado = 'pode demorar mais — OCR em PDFs grandes'
+  }, 1000)
+}
+
+function pararCronometroProgresso(docId) {
+  if (progressoTimers[docId]) {
+    clearInterval(progressoTimers[docId])
+    delete progressoTimers[docId]
+  }
+}
+
 const cancelarSse = reactive({})
 const mostrarCriarDiploma = ref(false)
 const aCriarDiploma = ref(false)
@@ -159,12 +193,14 @@ async function processarDocumento(doc) {
   avisoProcessar[doc.id] = ''
   processandoId.value = doc.id
   processamentoAtivo[doc.id] = true
-  progressoUi[doc.id] = { mensagem: 'A ligar ao servidor…', percentagem: 0 }
+  progressoUi[doc.id] = { mensagem: 'A ligar ao servidor…', percentagem: 0, segundos: 0, estimado: '1–5 min' }
+  iniciarCronometroProgresso(doc.id)
 
   // Cancela SSE anterior se existir
   cancelarSse[doc.id]?.()
 
   const terminar = async (finalEstado) => {
+    pararCronometroProgresso(doc.id)
     cancelarSse[doc.id]?.()
     delete cancelarSse[doc.id]
     processamentoAtivo[doc.id] = false
@@ -261,7 +297,7 @@ async function processarDocumento(doc) {
 const eliminandoId = ref(null)
 
 async function eliminarDocumento(doc) {
-  const confirmado = window.confirm(
+  const confirmado = confirmarEliminacao(
     `Eliminar "${doc.titulo}"? Esta ação remove o PDF, os artigos extraídos e os embeddings associados. Não pode ser desfeita.`
   )
   if (!confirmado) return
@@ -269,10 +305,33 @@ async function eliminarDocumento(doc) {
   erroProcessar[doc.id] = ''
   eliminandoId.value = doc.id
   try {
-    await documentoService.eliminar(doc.id)
+    await documentoService.eliminar(doc.id, false)
     documentos.value = documentos.value.filter((d) => d.id !== doc.id)
   } catch (e) {
-    erroProcessar[doc.id] = e.response?.data?.mensagem || e.response?.data?.message || 'Não foi possível eliminar o documento.'
+    const msg =
+      e.response?.data?.mensagem ||
+      e.response?.data?.message ||
+      'Não foi possível eliminar o documento.'
+    // Documento preso em processamento → oferecer forçar
+    if (/processado|processamento|aguarde/i.test(msg)) {
+      const forcar = confirmarEliminacao(
+        msg + '\n\nO documento parece preso. Queres forçar a eliminação?'
+      )
+      if (forcar) {
+        try {
+          await documentoService.eliminar(doc.id, true)
+          documentos.value = documentos.value.filter((d) => d.id !== doc.id)
+          return
+        } catch (e2) {
+          erroProcessar[doc.id] =
+            e2.response?.data?.mensagem ||
+            e2.response?.data?.message ||
+            'Falha ao forçar eliminação.'
+          return
+        }
+      }
+    }
+    erroProcessar[doc.id] = msg
   } finally {
     eliminandoId.value = null
   }
@@ -325,11 +384,59 @@ async function criarDiplomaEContinuar() {
 
 function corEstado(estado) {
   switch (estado) {
-    case 'PROCESSADO': return 'estado-ok'
-    case 'ERRO': return 'estado-erro'
-    case 'PROCESSANDO': return 'estado-processando'
-    default: return 'estado-neutro'
+    case 'PROCESSADO':
+    case 'PROCESSADO_COM_AVISOS':
+      return 'estado-ok'
+    case 'ERRO':
+    case 'FALHA_EXTRACAO':
+      return 'estado-erro'
+    case 'PROCESSANDO':
+    case 'ANALISANDO':
+    case 'EXTRAINDO_TEXTO':
+    case 'OCR_EM_EXECUCAO':
+    case 'ESTRUTURANDO':
+      return 'estado-processando'
+    case 'IMPORTADO':
+      return 'estado-neutro'
+    default:
+      return 'estado-neutro'
   }
+}
+
+function rotuloEstado(doc) {
+  return doc.estadoRotulo || doc.estado || '—'
+}
+
+function isPdfProtegido(doc) {
+  if (doc.codigoErro && String(doc.codigoErro).startsWith('PDF_PROTECTED')) return true
+  if (doc.tipoPdf === 'PROTECTED') return true
+  const t = `${doc.mensagemProgresso || ''} ${doc.observacoesProcessamento || ''} ${doc.resumoResultado || ''}`.toLowerCase()
+  return t.includes('protegido') || t.includes('restriç') || t.includes('imprimir para pdf')
+}
+
+function mensagemErroDoc(doc) {
+  return (
+    erroProcessar[doc.id]
+    || doc.mensagemProgresso
+    || doc.observacoesProcessamento
+    || doc.resumoResultado
+    || 'Não foi possível processar este documento.'
+  )
+}
+
+const ACOES_PDF_PROTEGIDO = [
+  'Abra o PDF no Chrome, Edge ou Adobe Reader',
+  'Imprimir → «Guardar como PDF» / «Microsoft Print to PDF»',
+  'Elimine este documento e importe a versão sem protecção',
+  'Associe o diploma e volte a processar'
+]
+
+function acoesPara(doc) {
+  if (doc.acoesSugeridas?.length) return doc.acoesSugeridas
+  if (isPdfProtegido(doc) || isPdfProtegido({ mensagemProgresso: erroProcessar[doc.id] })) {
+    return ACOES_PDF_PROTEGIDO
+  }
+  return []
 }
 
 onUnmounted(() => {
@@ -349,13 +456,13 @@ onMounted(async () => {
 
 <template>
   <div class="page">
-    <div class="page-header">
-      <span class="eyebrow">Biblioteca</span>
-      <h1>Importar Documentos</h1>
-      <p>Carrega PDFs de legislação e associa-os a um diploma para extrair os artigos automaticamente.</p>
-    </div>
-
-    <!-- FORMULÁRIO DE UPLOAD -->
+    <PageHero
+      eyebrow="Biblioteca"
+      title="Importar Documentos"
+      lead="Carrega diplomas e textos para a biblioteca jurídica."
+      art="biblioteca"
+    />
+<!-- FORMULÁRIO DE UPLOAD -->
     <form class="card form-card" @submit.prevent="enviarDocumento">
       <div class="field">
         <label>Ficheiro PDF *</label>
@@ -422,23 +529,44 @@ onMounted(async () => {
               {{ doc.numeroPaginas }} páginas · importado em {{ doc.dataImportacao?.slice(0, 10) }}
             </span>
           </div>
-          <span class="estado-badge" :class="corEstado(doc.estado)">{{ doc.estado }}</span>
+          <span class="estado-badge" :class="corEstado(doc.estado)">{{ rotuloEstado(doc) }}</span>
         </div>
 
-        <p v-if="doc.observacoesProcessamento" class="documento-obs">{{ doc.observacoesProcessamento }}</p>
+        <div
+          v-if="doc.tipoPdf === 'PROTECTED' && doc.estado === 'IMPORTADO'"
+          class="alerta-protegido"
+        >
+          <strong>PDF com protecção detectada</strong>
+          <p>{{ doc.mensagemProgresso || doc.observacoesProcessamento }}</p>
+          <ol class="acoes-lista">
+            <li v-for="(a, i) in ACOES_PDF_PROTEGIDO" :key="i">{{ a }}</li>
+          </ol>
+        </div>
+
+        <p
+          v-else-if="doc.observacoesProcessamento && doc.estado !== 'FALHA_EXTRACAO' && doc.estado !== 'ERRO'"
+          class="documento-obs"
+        >{{ doc.observacoesProcessamento }}</p>
 
         <div
-          v-if="progressoUi[doc.id] || doc.estado === 'PROCESSANDO'"
+          v-if="progressoUi[doc.id] || ['PROCESSANDO','ANALISANDO','EXTRAINDO_TEXTO','OCR_EM_EXECUCAO','ESTRUTURANDO'].includes(doc.estado)"
           class="documento-obs progresso"
         >
-          <div class="progresso-texto">
-            {{
-              progressoUi[doc.id]?.mensagem
-                || doc.mensagemProgresso
-                || 'A processar…'
-            }}
-            <span v-if="(progressoUi[doc.id]?.percentagem ?? doc.progressoPercentagem) != null">
-              — {{ progressoUi[doc.id]?.percentagem ?? doc.progressoPercentagem }}%
+          <div class="progresso-cabecalho">
+            <span class="progresso-texto">
+              {{
+                progressoUi[doc.id]?.mensagem
+                  || doc.mensagemProgresso
+                  || 'A processar…'
+              }}
+            </span>
+            <span class="progresso-meta">
+              <template v-if="(progressoUi[doc.id]?.percentagem ?? doc.progressoPercentagem) != null">
+                {{ progressoUi[doc.id]?.percentagem ?? doc.progressoPercentagem }}%
+              </template>
+              <template v-if="progressoUi[doc.id]?.segundos != null">
+                · {{ progressoUi[doc.id].segundos }}s
+              </template>
             </span>
           </div>
           <div class="progresso-bar">
@@ -452,6 +580,9 @@ onMounted(async () => {
               }"
             />
           </div>
+          <p v-if="progressoUi[doc.id]?.estimado" class="progresso-hint">
+            Estimativa: {{ progressoUi[doc.id].estimado }}. Não feches esta página.
+          </p>
         </div>
 
         <div class="documento-acoes">
@@ -494,7 +625,19 @@ onMounted(async () => {
             </button>
           </template>
         </div>
-        <p v-if="erroProcessar[doc.id]" class="erro">{{ erroProcessar[doc.id] }}</p>
+        <div
+          v-if="erroProcessar[doc.id] || doc.estado === 'FALHA_EXTRACAO' || doc.estado === 'ERRO'"
+          class="alerta-falha"
+        >
+          <strong>{{ isPdfProtegido(doc) || isPdfProtegido({ mensagemProgresso: erroProcessar[doc.id] }) ? 'Não foi possível extrair o texto' : 'Processamento interrompido' }}</strong>
+          <p>{{ mensagemErroDoc(doc) }}</p>
+          <ol v-if="acoesPara(doc).length" class="acoes-lista">
+            <li v-for="(a, i) in acoesPara(doc)" :key="i">{{ a }}</li>
+          </ol>
+          <p class="alerta-hint">
+            Dica: «Imprimir para PDF» remove a maioria das restrições dos diplomas oficiais sem alterar o conteúdo.
+          </p>
+        </div>
         <p v-if="avisoProcessar[doc.id]" class="aviso">{{ avisoProcessar[doc.id] }}</p>
       </div>
 
@@ -647,6 +790,41 @@ onMounted(async () => {
 .estado-processando { background: var(--color-primary-100); color: var(--color-primary-700); }
 .estado-neutro { background: var(--color-secondary-100); color: var(--color-secondary-600); }
 
+.alerta-protegido,
+.alerta-falha {
+  margin-top: 0.75rem;
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid #f0c4b8;
+  background: #fff8f6;
+  color: var(--color-text);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+.alerta-protegido strong,
+.alerta-falha strong {
+  display: block;
+  color: var(--color-danger);
+  margin-bottom: 0.35rem;
+  font-size: 0.88rem;
+}
+.alerta-protegido p,
+.alerta-falha p {
+  margin: 0 0 0.5rem;
+}
+.acoes-lista {
+  margin: 0.4rem 0 0.5rem 1.1rem;
+  padding: 0;
+  color: var(--color-text-soft);
+  font-size: 0.8rem;
+}
+.acoes-lista li { margin: 0.2rem 0; }
+.alerta-hint {
+  margin: 0.35rem 0 0 !important;
+  font-size: 0.78rem !important;
+  color: var(--color-text-muted) !important;
+}
+
 .documento-acoes {
   display: flex;
   align-items: center;
@@ -707,7 +885,26 @@ onMounted(async () => {
   font-size: 0.82rem;
   color: var(--color-text-soft);
 }
-.progresso-texto { margin-bottom: 0.4rem; line-height: 1.35; }
+.progresso-cabecalho {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin-bottom: 0.4rem;
+  line-height: 1.35;
+}
+.progresso-texto { flex: 1; }
+.progresso-meta {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.progresso-hint {
+  margin: 0.45rem 0 0;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
 .progresso-bar {
   height: 7px;
   border-radius: 999px;

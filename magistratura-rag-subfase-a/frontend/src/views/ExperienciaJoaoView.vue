@@ -7,8 +7,9 @@ import { useRoute, useRouter } from 'vue-router'
 import { useJornadaStore } from '@/stores/jornada'
 import { resolverCta } from '@/jornada/resolver'
 import {
-    blocosDoMomento,
-  ctaDoMomento
+  blocosDoMomento,
+  ctaDoMomento,
+  reflexaoParaMomento
 } from '@/jornada/seed'
 import NarrativaAudio from '@/components/caminhada/NarrativaAudio.vue'
 import { LoadingState } from '@/components/ui'
@@ -52,15 +53,32 @@ const momento = computed(() => {
 
 const blocos = computed(() => blocosDoMomento(momento.value, 0))
 const cta = computed(() => ctaDoMomento(momento.value))
-const reflexao = computed(() => null)
+const reflexao = computed(() => reflexaoParaMomento(momento.value))
 
 const faseRotulo = computed(() => {
-  const f = momento.value?.fase
-  if (f === 'iniciante') return 'Fase 1 · Iniciante'
-  if (f === 'estudante') return 'Fase 2 · Estudante'
-  if (f === 'candidato') return 'Fase 3 · Candidato'
+  const m = momento.value
+  if (!m) return null
+  const mapa = {
+    observar: 'Fase · Observar',
+    compreender: 'Fase · Compreender',
+    interpretar: 'Fase · Interpretar',
+    decidir: 'Fase · Decidir'
+  }
+  if (m.fasePedagogica && mapa[m.fasePedagogica]) return mapa[m.fasePedagogica]
+  const f = m.fase
+  if (f === 'iniciante') return 'Fase · Iniciante'
+  if (f === 'estudante') return 'Fase · Estudante'
+  if (f === 'candidato') return 'Fase · Candidato'
   return null
 })
+
+const competenciaRotulo = computed(() => momento.value?.competencia?.titulo || null)
+const estadoCognitivoRotulo = computed(
+  () => momento.value?.estadoCognitivoMeta?.rotulo || null
+)
+const saidaEsperada = computed(() => momento.value?.saidaEsperada || null)
+const ganchoProxima = computed(() => momento.value?.ganchoProxima || null)
+const perguntaCentral = computed(() => momento.value?.perguntaCentral || null)
 
 const visiveis = computed(() => jornada.momentosVisiveis)
 const indiceNaLista = computed(() =>
@@ -141,9 +159,18 @@ function irExperiencia(m) {
           <span class="exp-num">Experiência {{ String(momento.ordem).padStart(2, '0') }}</span>
         </div>
         <h1 class="exp-titulo">{{ momento.titulo }}</h1>
-        <div v-if="momento.conceito?.rotulo" class="conceito-chip">
-          <Scale :size="14" />
-          <span>{{ momento.conceito.rotulo }}</span>
+        <p v-if="perguntaCentral" class="pergunta-central">{{ perguntaCentral }}</p>
+        <div class="chips-pedagogicos">
+          <div v-if="momento.conceito?.rotulo" class="conceito-chip">
+            <Scale :size="14" />
+            <span>{{ momento.conceito.rotulo }}</span>
+          </div>
+          <div v-if="competenciaRotulo" class="conceito-chip chip-comp">
+            <span>{{ competenciaRotulo }}</span>
+          </div>
+          <div v-if="estadoCognitivoRotulo" class="conceito-chip chip-estado">
+            <span>{{ estadoCognitivoRotulo }}</span>
+          </div>
         </div>
       </header>
 
@@ -152,8 +179,16 @@ function irExperiencia(m) {
         <NarrativaAudio :blocos="blocos" :reflexao="reflexao" />
       </section>
 
-      <!-- Sem moral, sem “o que aprendeste”, sem base jurídica didáctica.
-           A história basta. O CTA, se existir, é só ponte prática. -->
+      <section v-if="saidaEsperada || ganchoProxima" class="seccao seccao-pedagogica">
+        <div v-if="saidaEsperada" class="box-saida">
+          <h3>O que deves ser capaz de fazer</h3>
+          <p>{{ saidaEsperada }}</p>
+        </div>
+        <div v-if="ganchoProxima" class="box-gancho">
+          <h3>A seguir</h3>
+          <p>{{ ganchoProxima }}</p>
+        </div>
+      </section>
 
       <footer class="exp-footer">
         <button
@@ -440,4 +475,56 @@ function irExperiencia(m) {
   .exp-art { grid-row: auto; width: fit-content; }
   .exp-meta, .exp-titulo, .conceito-chip { grid-column: 1; }
 }
+
+.pergunta-central {
+  margin: 0.35rem 0 0.75rem;
+  font-size: 1.02rem;
+  font-weight: 600;
+  color: var(--color-secondary-700, #2d4a2c);
+  line-height: 1.35;
+}
+.chips-pedagogicos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.35rem;
+}
+.chip-comp {
+  background: color-mix(in srgb, var(--color-secondary-100, #e8f2eb) 80%, white);
+}
+.chip-estado {
+  border-style: dashed;
+}
+.seccao-pedagogica {
+  display: grid;
+  gap: 0.75rem;
+  margin: 1rem 0 0.25rem;
+}
+.box-saida,
+.box-gancho {
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface, #fff);
+}
+.box-saida h3,
+.box-gancho h3 {
+  margin: 0 0 0.35rem;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+}
+.box-saida p,
+.box-gancho p {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--color-text);
+}
+.box-gancho {
+  border-color: var(--color-secondary-300, #9bb86a);
+  background: color-mix(in srgb, var(--color-secondary-50, #f4faf6) 90%, white);
+}
+
 </style>

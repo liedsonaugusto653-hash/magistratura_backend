@@ -1,6 +1,6 @@
 <script setup>
 /**
- * Experiências narrativas — várias personagens, sem lições explícitas.
+ * Currículo narrativo — Missão → competências → experiências.
  */
 import { onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
@@ -9,6 +9,7 @@ import { LoadingState } from '@/components/ui'
 import { ChevronRight, BookOpen, Sparkles } from 'lucide-vue-next'
 import PersonagemAvatar from '@/components/brand/PersonagemAvatar.vue'
 import { PageHero } from '@/components/ui'
+import { progressoCompetencias } from '@/jornada/seed'
 
 const jornada = useJornadaStore()
 const router = useRouter()
@@ -25,16 +26,26 @@ const progressoPct = computed(() =>
   total.value ? Math.round((vividas.value / total.value) * 100) : 0
 )
 
+const missao = computed(() => jornada.seed?.missao || null)
+
+const competenciasProgresso = computed(() =>
+  progressoCompetencias(jornada.progress?.concluidos || [])
+)
+
 const porFase = computed(() => {
   const grupos = [
+    { chave: 'observar', titulo: 'Observar', subtitulo: 'Compreender sem decidir', items: [] },
+    { chave: 'compreender', titulo: 'Compreender', subtitulo: 'Normas, fontes e órgãos', items: [] },
+    { chave: 'interpretar', titulo: 'Interpretar', subtitulo: 'Perguntas antes das conclusões', items: [] },
+    { chave: 'decidir', titulo: 'Decidir', subtitulo: 'Facto → norma → consequência', items: [] },
     { chave: 'iniciante', titulo: 'Começos', subtitulo: 'Primeiros passos', items: [] },
     { chave: 'estudante', titulo: 'Percursos', subtitulo: 'A meio do caminho', items: [] },
     { chave: 'candidato', titulo: 'Decisões', subtitulo: 'Quando o peso aumenta', items: [] },
     { chave: 'outra', titulo: 'Outras', subtitulo: 'Experiências', items: [] }
   ]
   for (const m of visiveis.value) {
-    const g =
-      grupos.find((x) => x.chave === m.fase) || grupos.find((x) => x.chave === 'outra')
+    const chave = m.fasePedagogica || m.fase || 'outra'
+    const g = grupos.find((x) => x.chave === chave) || grupos.find((x) => x.chave === 'outra')
     g.items.push(m)
   }
   return grupos.filter((g) => g.items.length)
@@ -60,11 +71,32 @@ function continuar() {
 <template>
   <div class="page cam-page">
     <PageHero
-      eyebrow="Experiências"
-      title="Vidas"
-      lead="Acompanha pessoas comuns. Observa decisões, dúvidas e consequências — sem lições explícitas."
+      eyebrow="Currículo narrativo"
+      :title="missao?.titulo || 'Experiências'"
+      :lead="missao?.descricao || 'Acompanha o crescimento do protagonista enquanto constróis competências jurídicas.'"
       art="caminhada"
     />
+
+    <section v-if="!jornada.carregando && competenciasProgresso.length" class="mapa-competencias card-comp">
+      <header class="comp-head">
+        <h2>Competências da missão</h2>
+        <p>Cada experiência serve uma capacidade concreta — não apenas um tema.</p>
+      </header>
+      <ul class="comp-lista">
+        <li
+          v-for="c in competenciasProgresso"
+          :key="c.id"
+          class="comp-item"
+          :class="{ completa: c.completa }"
+        >
+          <span class="comp-pct">{{ c.percentagem }}%</span>
+          <div class="comp-body">
+            <strong>{{ c.titulo }}</strong>
+            <span class="comp-meta">{{ c.feitas }}/{{ c.total }} experiências · {{ c.fasePedagogica }}</span>
+          </div>
+        </li>
+      </ul>
+    </section>
 
     <LoadingState v-if="jornada.carregando" message="A carregar os capítulos…" />
 
@@ -396,4 +428,32 @@ function continuar() {
   background: var(--color-secondary-50, #f4f7ea);
   border: 1px solid var(--color-secondary-100);
 }
+
+.card-comp {
+  margin: 0 0 1.75rem;
+  padding: 1.1rem 1.2rem 1.2rem;
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  background: var(--color-surface, #fff);
+}
+.comp-head h2 { margin: 0 0 0.25rem; font-size: 1rem; }
+.comp-head p { margin: 0 0 0.85rem; font-size: 0.82rem; color: var(--color-text-muted); }
+.comp-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.45rem; }
+.comp-item {
+  display: flex; gap: 0.75rem; align-items: flex-start;
+  padding: 0.55rem 0.65rem; border-radius: 10px; border: 1px solid transparent;
+  background: var(--color-surface-alt, #f7f9f6);
+}
+.comp-item.completa {
+  border-color: var(--color-secondary-300, #9bb86a);
+  background: color-mix(in srgb, var(--color-secondary-50, #f4faf6) 85%, white);
+}
+.comp-pct {
+  font-size: 0.78rem; font-weight: 700; color: var(--color-secondary-700);
+  min-width: 2.4rem; font-variant-numeric: tabular-nums;
+}
+.comp-body { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+.comp-body strong { font-size: 0.88rem; font-weight: 600; }
+.comp-meta { font-size: 0.72rem; color: var(--color-text-muted); text-transform: capitalize; }
+
 </style>
