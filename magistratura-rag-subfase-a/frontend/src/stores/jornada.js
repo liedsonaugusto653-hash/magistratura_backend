@@ -48,17 +48,18 @@ export const useJornadaStore = defineStore('jornada', {
     cenaActual() {
       const m = this.momentoActual
       if (!m) return null
+      const cenas = m.cenas || []
       const cenaId = this.progress.cenaId
       if (cenaId) {
-        const c = m.cenas.find((x) => x.id === cenaId)
+        const c = cenas.find((x) => x.id === cenaId)
         if (c) return c
       }
-      return m.cenas[0]
+      return cenas[0] || null
     },
     cenaIndex() {
       const m = this.momentoActual
       const c = this.cenaActual
-      if (!m || !c) return 0
+      if (!m || !c || !m.cenas) return 0
       return Math.max(0, m.cenas.findIndex((x) => x.id === c.id))
     },
     isMomentoConcluido: (state) => (momentoId) =>
@@ -112,7 +113,7 @@ export const useJornadaStore = defineStore('jornada', {
       const m = this.seed.momentos.find((x) => x.id === momentoId)
       if (!m) return
       this.progress.momentoId = m.id
-      this.progress.cenaId = m.cenas[0]?.id || null
+      this.progress.cenaId = m.cenas?.[0]?.id || null
       saveLocal(this.progress)
       this.actualizarHook()
       this.persistir()
@@ -121,9 +122,10 @@ export const useJornadaStore = defineStore('jornada', {
     async avancarCena() {
       const m = this.momentoActual
       if (!m) return
-      const idx = this.cenaIndex
-      if (idx < m.cenas.length - 1) {
-        this.progress.cenaId = m.cenas[idx + 1].id
+      const cenas = m.cenas || []
+      const cenaIdx = this.cenaIndex
+      if (cenas.length && cenaIdx < cenas.length - 1) {
+        this.progress.cenaId = cenas[cenaIdx + 1].id
         saveLocal(this.progress)
         this.actualizarHook()
         await this.persistir()
@@ -134,8 +136,8 @@ export const useJornadaStore = defineStore('jornada', {
       this.progress.concluidos = [...concluidos]
       // Próximo na sequência curricular (lista já ordenada por módulo + ordem)
       const lista = this.seed.momentos || []
-      const idx = lista.findIndex((x) => x.id === m.id)
-      const next = idx >= 0 ? lista[idx + 1] : null
+      const momentoIdx = lista.findIndex((x) => x.id === m.id)
+      const next = momentoIdx >= 0 ? lista[momentoIdx + 1] : null
       if (next) {
         this.progress.momentoId = next.id
         this.progress.cenaId = next.cenas?.[0]?.id || null
